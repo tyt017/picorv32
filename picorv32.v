@@ -652,6 +652,7 @@ module picorv32 #(
 	reg instr_getq, instr_setq, instr_retirq, instr_maskirq, instr_waitirq, instr_timer;
 	reg instr_andn, instr_orn, instr_xnor, instr_max, instr_maxu, instr_min, instr_minu, instr_rol, instr_ror;
 	reg instr_clz, instr_ctz, instr_cpop, instr_sext_b, instr_sext_h, instr_zext_h, instr_rori, instr_orc_b, instr_rev8;
+	
 	wire instr_trap;
 
 	reg [regindex_bits-1:0] decoded_rd, decoded_rs1;
@@ -908,9 +909,9 @@ module picorv32 #(
 			is_beq_bne_blt_bge_bltu_bgeu <= mem_rdata_latched[6:0] == 7'b1100011;
 			is_lb_lh_lw_lbu_lhu          <= mem_rdata_latched[6:0] == 7'b0000011;
 			is_sb_sh_sw                  <= mem_rdata_latched[6:0] == 7'b0100011;
-			is_alu_reg_imm               <= mem_rdata_latched[6:0] == 7'b0010011; // I-type insrructions + clz, ctz, cpop, sext.b, sext.h, zext.h, rori, orc.b, rev8
+			is_alu_reg_imm               <= mem_rdata_latched[6:0] == 7'b0010011; // I-type insrructions + clz, ctz, cpop, sext.b, sext.h, rori, orc.b, rev8
 			is_alu_reg_reg               <= mem_rdata_latched[6:0] == 7'b0110011; // R-type instructions + 
-																				  // andn, orn, xnor, max, maxu, min, minu, rol, ror
+																				  // andn, orn, xnor, max, maxu, min, minu, rol, ror, zext.h
 
 			{ decoded_imm_j[31:20], decoded_imm_j[10:1], decoded_imm_j[11], decoded_imm_j[19:12], decoded_imm_j[0] } <= $signed({mem_rdata_latched[31:12], 1'b0});
 
@@ -1108,7 +1109,7 @@ module picorv32 #(
 			instr_cpop  <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:20] == 12'b011000000010;
 			instr_sext_b <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:20] == 12'b011000000100;
 			instr_sext_h <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:20] == 12'b011000000101;
-			instr_zext_h <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b100 && mem_rdata_q[31:20] == 12'b000010000000;
+			instr_zext_h <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b100 && mem_rdata_q[31:20] == 12'b000010000000;
 
 			instr_rori   <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:25] == 7'b0110000;
 
@@ -1307,8 +1308,9 @@ module picorv32 #(
 	reg [31:0] alu_add_sub;
 	reg [31:0] alu_shl, alu_shr;
 	reg alu_eq, alu_ltu, alu_lts;
-	reg [31:0] temp;
+	reg [31:0] temp, temp2, temp3, temp4;
 	reg flag;
+	integer index, index1;
 
 	generate if (TWO_CYCLE_ALU) begin
 		always @(posedge clk) begin
@@ -1350,7 +1352,7 @@ module picorv32 #(
 
 		alu_out = 'bx;
 		(* parallel_case, full_case *)
-		case (1'b1) // arthmetic instructions
+		case (1'b1) // arithmetic instructions
 			is_lui_auipc_jal_jalr_addi_add_sub:
 				alu_out = alu_add_sub;
 			is_compare:
@@ -1375,9 +1377,9 @@ module picorv32 #(
 				alu_out = ($signed(reg_op1) < $signed(reg_op2))? $signed(reg_op1) : $signed(reg_op2);
 			instr_minu:
 				alu_out = (reg_op1 < reg_op2)? reg_op1 : reg_op2;
-			instr_rol:
+			BARREL_SHIFTER && instr_rol:
 				alu_out = (reg_op1 << (reg_op2[4:0])) | (reg_op1 >> (32 - (reg_op2[4:0])));
-			instr_ror:
+			BARREL_SHIFTER && instr_ror:
 				alu_out = (reg_op1 >> (reg_op2[4:0])) | (reg_op1 << (32 - (reg_op2[4:0])));
 			instr_clz:
     			if (reg_op1 == 0) alu_out = 32;
@@ -1405,6 +1407,43 @@ module picorv32 #(
 						end
 					end
 				end
+			instr_cpop:
+				if (reg_op1 == 0) alu_out = 0;
+				else begin
+					alu_out = 0;
+					for(i = 0; i < 32; i = i + 1) begin
+						if (reg_op1[i] == 1) begin
+							alu_out = alu_out + 1;
+						end
+					end
+				end
+			instr_sext_b:
+				alu_out = {{24{reg_op1[7]}}, reg_op1[7:0]};
+			instr_sext_h:
+				alu_out = {{16{reg_op1[15]}}, reg_op1[15:0]};
+			instr_zext_h:
+				alu_out = {{16{1'b0}}, reg_op1[15:0]};
+			BARREL_SHIFTER && instr_rori:
+				alu_out = (reg_op1 >> (reg_op2[4:0])) | (reg_op1 << (32 - (reg_op2[4:0])));
+			BARREL_SHIFTER && instr_orc_b:
+				if (reg_op1 == 0) alu_out = 0;
+				else begin
+					temp = reg_op1;
+					for (i = 0; i < 4; i = i + 1) begin
+						if (temp[7:0] == 0) begin
+							temp2[7:0] = {8{1'b0}};
+							temp = temp >> 8;
+							temp2 = temp2 << 8;
+						end else begin
+							temp2[7:0] = {8{1'b1}};
+							temp = temp >> 8;
+							temp2 = temp2 << 8;
+						end
+					end
+					alu_out = {temp2[7:0], temp2[15:8], temp2[23:16], temp2[31:24]};
+				end
+			BARREL_SHIFTER && instr_rev8:
+				alu_out = {reg_op1[7:0], reg_op1[15:8], reg_op1[23:16], reg_op1[31:24]};
 			BARREL_SHIFTER && (instr_sll || instr_slli):
 				alu_out = alu_shl;
 			BARREL_SHIFTER && (instr_srl || instr_srli || instr_sra || instr_srai):

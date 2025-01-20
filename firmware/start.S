@@ -400,7 +400,7 @@ start:
 	n ## _ret:
 #endif
 
-	/*TEST(lui)
+	TEST(lui)
 	TEST(auipc)
 	TEST(j)
 	TEST(jal)
@@ -455,17 +455,24 @@ start:
 	TEST(simple)
 	
 	TEST(andn)
-	TEST(orn)*/
-	//TEST(add)
-	//TEST(xnor)
-	//TEST(max)
-	//TEST(maxu)
-	//TEST(min)
-	//TEST(minu)
-	//TEST(rol)
-	//TEST(ror)
-	TEST(ctz)
+	TEST(orn)
+	TEST(xnor)
+	TEST(max)
+	TEST(maxu)
+	TEST(min)
+	TEST(minu)
+	TEST(rol)
+	TEST(ror)
 	TEST(clz)
+	TEST(ctz)
+	TEST(cpop)
+	TEST(sext_b)
+	TEST(sext_h)
+	TEST(zext_h)
+	TEST(rori)
+	TEST(orc_b)
+	TEST(rev8)
+
 
 	/* set stack pointer */
 	lui sp,(128*1024)>>12
