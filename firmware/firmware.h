@@ -40,4 +40,10 @@ void multest(void);
 // stats.c
 void stats(void);
 
+// clz32.c
+int clz32(uint32_t x);
+uint32_t hard_clz(uint32_t a);
+void clztest(void);
+void clz_hardware_test(uint32_t input);
+void clz_software_test(uint32_t input);
 #endif

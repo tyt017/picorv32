@@ -144,7 +144,6 @@ void multest(void)
 			__asm__ volatile ("ebreak");
 			return;
 		}
-
 		print_str(" OK\n");
 	}
 }

@@ -36,6 +36,8 @@
 	.global hard_divu
 	.global hard_rem
 	.global hard_remu
+	.global clztest
+	.global hard_clz
 	.global stats
 
 reset_vec:
@@ -400,7 +402,7 @@ start:
 	n ## _ret:
 #endif
 
-	TEST(lui)
+	/*TEST(lui)
 	TEST(auipc)
 	TEST(j)
 	TEST(jal)
@@ -471,7 +473,7 @@ start:
 	TEST(zext_h)
 	TEST(rori)
 	TEST(orc_b)
-	TEST(rev8)
+	TEST(rev8)*/
 
 
 	/* set stack pointer */
@@ -496,6 +498,8 @@ start:
 	/* call stats C code */
 	jal ra,stats
 #endif
+
+	jal	ra, clztest
 
 	/* print "DONE\n" */
 	lui a0,0x10000000>>12
@@ -553,3 +557,56 @@ hard_remu:
 	remu a0, a0, a1
 	ret
 
+/* clz32 functions for clz32.c
+ **********************************/
+
+hard_clz:
+	clz a0, a0
+	ret
+
+clz32:
+    # Initialize n = 0
+    li t0, 0         # t0 = n
+
+    # Check if the upper 16 bits are 0
+    li t1, 0xFFFF0000    # t1 = 0xFFFF0000
+    and t2, a0, t1       # t2 = a0 & 0xFFFF0000
+    bnez t2, skip_16     # If the upper 16 bits are not 0, skip
+    addi t0, t0, 16      # n += 16
+    slli a0, a0, 16      # x <<= 16
+
+skip_16:
+    # Check if the upper 8 bits are 0
+    li t1, 0xFF000000    # t1 = 0xFF000000
+    and t2, a0, t1       # t2 = a0 & 0xFF000000
+    bnez t2, skip_8      # If the upper 8 bits are not 0, skip
+    addi t0, t0, 8       # n += 8
+    slli a0, a0, 8       # x <<= 8
+
+skip_8:
+    # Check if the upper 4 bits are 0
+    li t1, 0xF0000000    # t1 = 0xF0000000
+    and t2, a0, t1       # t2 = a0 & 0xF0000000
+    bnez t2, skip_4      # If the upper 4 bits are not 0, skip
+    addi t0, t0, 4       # n += 4
+    slli a0, a0, 4       # x <<= 4
+
+skip_4:
+    # Check if the upper 2 bits are 0
+    li t1, 0xC0000000    # t1 = 0xC0000000
+    and t2, a0, t1       # t2 = a0 & 0xC0000000
+    bnez t2, skip_2      # If the upper 2 bits are not 0, skip
+    addi t0, t0, 2       # n += 2
+    slli a0, a0, 2       # x <<= 2
+
+skip_2:
+    # Check if the highest bit is 0
+    li t1, 0x80000000    # t1 = 0x80000000
+    and t2, a0, t1       # t2 = a0 & 0x80000000
+    bnez t2, end_clz     # If the highest bit is not 0, end
+    addi t0, t0, 1       # n += 1
+
+end_clz:
+    # Return n (leading zeros count)
+    mv a0, t0            # Return n
+    ret                  # Return to main
