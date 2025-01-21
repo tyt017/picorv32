@@ -651,6 +651,7 @@ module picorv32 #(
 	reg instr_rdcycle, instr_rdcycleh, instr_rdinstr, instr_rdinstrh, instr_ecall_ebreak, instr_fence;
 	reg instr_getq, instr_setq, instr_retirq, instr_maskirq, instr_waitirq, instr_timer;
 	reg instr_sh1add, instr_sh2add, instr_sh3add; // new added zba
+	reg instr_bclr, instr_bclri, instr_bext, instr_bexti, instr_binv, instr_binvi, instr_bset, instr_bseti; // new added zbs
 	reg instr_clmul, instr_clmulh, instr_clmulr; // new added zbc
 	wire instr_trap;
 
@@ -687,6 +688,7 @@ module picorv32 #(
 			instr_rdcycle, instr_rdcycleh, instr_rdinstr, instr_rdinstrh, instr_fence,
 			instr_getq, instr_setq, instr_retirq, instr_maskirq, instr_waitirq, instr_timer, 
 			instr_sh1add, instr_sh2add, instr_sh3add, // new added zba
+			instr_bclr, instr_bclri, instr_bext, instr_bexti, instr_binv, instr_binvi, instr_bset, instr_bseti, // new added zbs
 			instr_clmul, instr_clmulh, instr_clmulr}; // new added zbc
 
 	wire is_rdcycle_rdcycleh_rdinstr_rdinstrh;
@@ -764,6 +766,15 @@ module picorv32 #(
 		if(instr_sh1add)    new_ascii_instr = "sh1add"; // new added zba
 		if(instr_sh2add)    new_ascii_instr = "sh2add";
 		if(instr_sh3add)    new_ascii_instr = "sh3add";
+
+		if(instr_bclr)    new_ascii_instr = "bclr"; // new added zbs
+		if(instr_bclri)    new_ascii_instr = "bclri";
+		if(instr_bext)    new_ascii_instr = "bext";
+		if(instr_bexti)    new_ascii_instr = "bexti";
+		if(instr_binv)    new_ascii_instr = "binv";
+		if(instr_binvi)    new_ascii_instr = "binvi";
+		if(instr_bset)    new_ascii_instr = "bset";
+		if(instr_bseti)    new_ascii_instr = "bseti";
 
 		if(instr_clmul)    new_ascii_instr = "clmul"; // new added zbc
 		if(instr_clmulh)    new_ascii_instr = "clmulh";
@@ -1094,6 +1105,15 @@ module picorv32 #(
 			instr_sh2add   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b100 && mem_rdata_q[31:25] == 7'b0010000;
 			instr_sh3add   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b110 && mem_rdata_q[31:25] == 7'b0010000;
 
+			instr_bclr     <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:25] == 7'b0100100; // new added zbs
+			instr_bclri    <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:25] == 7'b0100100;
+			instr_bext     <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:25] == 7'b0100100;
+			instr_bexti    <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:25] == 7'b0100100;
+			instr_binv     <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:25] == 7'b0110100;
+			instr_binvi    <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:25] == 7'b0110100;
+			instr_bset     <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:25] == 7'b0010100;
+			instr_bseti    <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:25] == 7'b0010100;
+
 			instr_clmul    <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:25] == 7'b0000101; // new added zbc
 			instr_clmulh   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b011 && mem_rdata_q[31:25] == 7'b0000101;
 			instr_clmulr   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b010 && mem_rdata_q[31:25] == 7'b0000101;
@@ -1187,6 +1207,15 @@ module picorv32 #(
 			instr_sh1add <=0; //new added zba
 			instr_sh2add <=0;
 			instr_sh3add <=0;
+
+			instr_bclr   <=0; //new added zbs
+			instr_bclri  <=0;
+			instr_bext   <=0;
+			instr_bexti  <=0;
+			instr_binv   <=0;
+			instr_binvi  <=0;
+			instr_bset   <=0;
+			instr_bseti  <=0;
 
 			instr_clmul  <=0; // new added zbc
 			instr_clmulh <=0;
@@ -1325,6 +1354,24 @@ module picorv32 #(
 				alu_out = alu_sh2add;
         	instr_sh3add: 
 				alu_out = alu_sh3add;
+
+			// new added zbs
+			instr_bclr:
+				alu_out = reg_op1 & ~(1 << reg_op2[4:0]);
+			instr_bclri:
+				alu_out = reg_op1 & ~(1 << decoded_imm[4:0]);
+			instr_bext:
+				alu_out = (reg_op1 >> reg_op2[4:0]) & 1;
+			instr_bexti:
+				alu_out = (reg_op1 >> decoded_imm[4:0]) & 1; 
+			instr_binv:
+				alu_out = reg_op1 ^ (1 << reg_op2[4:0]); 
+			instr_binvi:
+				alu_out = reg_op1 ^ (1 << decoded_imm[4:0]);  
+			instr_bset:
+				alu_out = reg_op1 | (1 << reg_op2[4:0]);  
+			instr_bseti:
+				alu_out = reg_op1 | (1 << decoded_imm[4:0]);  
 
 			// new added zbc
 			instr_clmul: begin
