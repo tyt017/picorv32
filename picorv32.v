@@ -643,16 +643,15 @@ module picorv32 #(
 
 	// Instruction Decoder
 
-	reg instr_lui, instr_auipc, instr_jal, instr_jalr; // U-type, J-type, I-type
-	reg instr_beq, instr_bne, instr_blt, instr_bge, instr_bltu, instr_bgeu; // B-type
-	reg instr_lb, instr_lh, instr_lw, instr_lbu, instr_lhu, instr_sb, instr_sh, instr_sw; // I-type, S-type (memory-related)
-	reg instr_addi, instr_slti, instr_sltiu, instr_xori, instr_ori, instr_andi, instr_slli, instr_srli, instr_srai; // arthmetic I-type
-	reg instr_add, instr_sub, instr_sll, instr_slt, instr_sltu, instr_xor, instr_srl, instr_sra, instr_or, instr_and; // R-type
+	reg instr_lui, instr_auipc, instr_jal, instr_jalr;
+	reg instr_beq, instr_bne, instr_blt, instr_bge, instr_bltu, instr_bgeu;
+	reg instr_lb, instr_lh, instr_lw, instr_lbu, instr_lhu, instr_sb, instr_sh, instr_sw;
+	reg instr_addi, instr_slti, instr_sltiu, instr_xori, instr_ori, instr_andi, instr_slli, instr_srli, instr_srai;
+	reg instr_add, instr_sub, instr_sll, instr_slt, instr_sltu, instr_xor, instr_srl, instr_sra, instr_or, instr_and;
 	reg instr_rdcycle, instr_rdcycleh, instr_rdinstr, instr_rdinstrh, instr_ecall_ebreak, instr_fence;
 	reg instr_getq, instr_setq, instr_retirq, instr_maskirq, instr_waitirq, instr_timer;
-	reg instr_andn, instr_orn, instr_xnor, instr_max, instr_maxu, instr_min, instr_minu, instr_rol, instr_ror;
-	reg instr_clz, instr_ctz, instr_cpop, instr_sext_b, instr_sext_h, instr_zext_h, instr_rori, instr_orc_b, instr_rev8;
-	
+	reg instr_sh1add, instr_sh2add, instr_sh3add; // new added zba
+	reg instr_clmul, instr_clmulh, instr_clmulr; // new added zbc
 	wire instr_trap;
 
 	reg [regindex_bits-1:0] decoded_rd, decoded_rs1;
@@ -676,8 +675,9 @@ module picorv32 #(
 	reg is_beq_bne_blt_bge_bltu_bgeu;
 	reg is_lbu_lhu_lw;
 	reg is_alu_reg_imm;
-	reg is_alu_reg_reg;
+	reg is_alu_reg_reg; // opcode same as zba 
 	reg is_compare;
+	//reg is_zba; // newly added
 
 	assign instr_trap = (CATCH_ILLINSN || WITH_PCPI) && !{instr_lui, instr_auipc, instr_jal, instr_jalr,
 			instr_beq, instr_bne, instr_blt, instr_bge, instr_bltu, instr_bgeu,
@@ -685,9 +685,9 @@ module picorv32 #(
 			instr_addi, instr_slti, instr_sltiu, instr_xori, instr_ori, instr_andi, instr_slli, instr_srli, instr_srai,
 			instr_add, instr_sub, instr_sll, instr_slt, instr_sltu, instr_xor, instr_srl, instr_sra, instr_or, instr_and,
 			instr_rdcycle, instr_rdcycleh, instr_rdinstr, instr_rdinstrh, instr_fence,
-			instr_getq, instr_setq, instr_retirq, instr_maskirq, instr_waitirq, instr_timer,
-			instr_andn, instr_orn, instr_xnor, instr_max, instr_maxu, instr_min, instr_minu, instr_rol, instr_ror,
-			instr_clz, instr_ctz, instr_cpop, instr_sext_b, instr_sext_h, instr_zext_h, instr_rori, instr_orc_b, instr_rev8};
+			instr_getq, instr_setq, instr_retirq, instr_maskirq, instr_waitirq, instr_timer, 
+			instr_sh1add, instr_sh2add, instr_sh3add, // new added zba
+			instr_clmul, instr_clmulh, instr_clmulr}; // new added zbc
 
 	wire is_rdcycle_rdcycleh_rdinstr_rdinstrh;
 	assign is_rdcycle_rdcycleh_rdinstr_rdinstrh = |{instr_rdcycle, instr_rdcycleh, instr_rdinstr, instr_rdinstrh};
@@ -761,32 +761,13 @@ module picorv32 #(
 		if (instr_waitirq)  new_ascii_instr = "waitirq";
 		if (instr_timer)    new_ascii_instr = "timer";
 
-		// Zbb extension
-		if (instr_andn)     new_ascii_instr = "andn";
-		if (instr_orn)      new_ascii_instr = "orn";
-		if (instr_xnor)     new_ascii_instr = "xnor";
+		if(instr_sh1add)    new_ascii_instr = "sh1add"; // new added zba
+		if(instr_sh2add)    new_ascii_instr = "sh2add";
+		if(instr_sh3add)    new_ascii_instr = "sh3add";
 
-		if (instr_clz)      new_ascii_instr = "clz";
-		if (instr_ctz)      new_ascii_instr = "ctz";
-
-		if (instr_cpop)     new_ascii_instr = "cpop";
-
-		if (instr_max)      new_ascii_instr = "max";
-		if (instr_maxu)     new_ascii_instr = "maxu";
-		if (instr_min)      new_ascii_instr = "min";
-		if (instr_minu)     new_ascii_instr = "minu";
-
-		if (instr_sext_b)   new_ascii_instr = "sext.b";
-		if (instr_sext_h)   new_ascii_instr = "sext.h";
-		if (instr_zext_h)   new_ascii_instr = "zext.h";
-
-		if (instr_rol)      new_ascii_instr = "rol";
-		if (instr_ror)      new_ascii_instr = "ror";
-		if (instr_rori)     new_ascii_instr = "rori";
-
-		if (instr_orc_b)     new_ascii_instr = "orc.b";
-
-		if (instr_rev8)     new_ascii_instr = "rev8";
+		if(instr_clmul)    new_ascii_instr = "clmul"; // new added zbc
+		if(instr_clmulh)    new_ascii_instr = "clmulh";
+		if(instr_clmulr)    new_ascii_instr = "clmulr";
 		
 	end
 
@@ -897,8 +878,6 @@ module picorv32 #(
 		is_compare <= |{is_beq_bne_blt_bge_bltu_bgeu, instr_slti, instr_slt, instr_sltiu, instr_sltu};
 
 		if (mem_do_rinst && mem_done) begin
-
-			// check opcode
 			instr_lui     <= mem_rdata_latched[6:0] == 7'b0110111;
 			instr_auipc   <= mem_rdata_latched[6:0] == 7'b0010111;
 			instr_jal     <= mem_rdata_latched[6:0] == 7'b1101111;
@@ -909,9 +888,8 @@ module picorv32 #(
 			is_beq_bne_blt_bge_bltu_bgeu <= mem_rdata_latched[6:0] == 7'b1100011;
 			is_lb_lh_lw_lbu_lhu          <= mem_rdata_latched[6:0] == 7'b0000011;
 			is_sb_sh_sw                  <= mem_rdata_latched[6:0] == 7'b0100011;
-			is_alu_reg_imm               <= mem_rdata_latched[6:0] == 7'b0010011; // I-type insrructions + clz, ctz, cpop, sext.b, sext.h, rori, orc.b, rev8
-			is_alu_reg_reg               <= mem_rdata_latched[6:0] == 7'b0110011; // R-type instructions + 
-																				  // andn, orn, xnor, max, maxu, min, minu, rol, ror, zext.h
+			is_alu_reg_imm               <= mem_rdata_latched[6:0] == 7'b0010011;
+			is_alu_reg_reg               <= mem_rdata_latched[6:0] == 7'b0110011;
 
 			{ decoded_imm_j[31:20], decoded_imm_j[10:1], decoded_imm_j[11], decoded_imm_j[19:12], decoded_imm_j[0] } <= $signed({mem_rdata_latched[31:12], 1'b0});
 
@@ -956,7 +934,7 @@ module picorv32 #(
 						endcase
 					end
 					2'b01: begin // Quadrant 1
-						case (mem_rdata_latched[15:13]) // funct3
+						case (mem_rdata_latched[15:13])
 							3'b000: begin // C.NOP / C.ADDI
 								is_alu_reg_imm <= 1;
 								decoded_rd <= mem_rdata_latched[11:7];
@@ -1073,7 +1051,6 @@ module picorv32 #(
 		if (decoder_trigger && !decoder_pseudo_trigger) begin
 			pcpi_insn <= WITH_PCPI ? mem_rdata_q : 'bx;
 
-			// check funct3 and funct7
 			instr_beq   <= is_beq_bne_blt_bge_bltu_bgeu && mem_rdata_q[14:12] == 3'b000;
 			instr_bne   <= is_beq_bne_blt_bge_bltu_bgeu && mem_rdata_q[14:12] == 3'b001;
 			instr_blt   <= is_beq_bne_blt_bge_bltu_bgeu && mem_rdata_q[14:12] == 3'b100;
@@ -1091,7 +1068,6 @@ module picorv32 #(
 			instr_sh    <= is_sb_sh_sw && mem_rdata_q[14:12] == 3'b001;
 			instr_sw    <= is_sb_sh_sw && mem_rdata_q[14:12] == 3'b010;
 
-			// I-type
 			instr_addi  <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b000;
 			instr_slti  <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b010;
 			instr_sltiu <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b011;
@@ -1103,20 +1079,6 @@ module picorv32 #(
 			instr_srli  <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:25] == 7'b0000000;
 			instr_srai  <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:25] == 7'b0100000;
 
-			// Zbb extension
-			instr_clz   <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:20] == 12'b011000000000; // opcode + funct3 + imm[11:0]
-			instr_ctz   <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:20] == 12'b011000000001;
-			instr_cpop  <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:20] == 12'b011000000010;
-			instr_sext_b <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:20] == 12'b011000000100;
-			instr_sext_h <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:20] == 12'b011000000101;
-			instr_zext_h <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b100 && mem_rdata_q[31:20] == 12'b000010000000;
-
-			instr_rori   <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:25] == 7'b0110000;
-
-			instr_orc_b  <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:20] == 12'b001010000111;
-			instr_rev8   <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:20] == 12'b011010011000;
-
-			// R-type
 			instr_add   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b000 && mem_rdata_q[31:25] == 7'b0000000;
 			instr_sub   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b000 && mem_rdata_q[31:25] == 7'b0100000;
 			instr_sll   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:25] == 7'b0000000;
@@ -1127,17 +1089,14 @@ module picorv32 #(
 			instr_sra   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:25] == 7'b0100000;
 			instr_or    <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b110 && mem_rdata_q[31:25] == 7'b0000000;
 			instr_and   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b111 && mem_rdata_q[31:25] == 7'b0000000;
+			
+			instr_sh1add   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b010 && mem_rdata_q[31:25] == 7'b0010000; // new added zba
+			instr_sh2add   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b100 && mem_rdata_q[31:25] == 7'b0010000;
+			instr_sh3add   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b110 && mem_rdata_q[31:25] == 7'b0010000;
 
-			// Zbb extension
-			instr_andn  <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b111 && mem_rdata_q[31:25] == 7'b0100000; // opcode + funct3 + funct7
-			instr_orn   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b110 && mem_rdata_q[31:25] == 7'b0100000;
-			instr_xnor  <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b100 && mem_rdata_q[31:25] == 7'b0100000;
-			instr_max   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b110 && mem_rdata_q[31:25] == 7'b0000101;
-			instr_maxu  <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b111 && mem_rdata_q[31:25] == 7'b0000101;
-			instr_min   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b100 && mem_rdata_q[31:25] == 7'b0000101;
-			instr_minu  <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:25] == 7'b0000101;
-			instr_rol   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:25] == 7'b0110000;
-			instr_ror   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:25] == 7'b0110000;
+			instr_clmul    <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:25] == 7'b0000101; // new added zbc
+			instr_clmulh   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b011 && mem_rdata_q[31:25] == 7'b0000101;
+			instr_clmulr   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b010 && mem_rdata_q[31:25] == 7'b0000101;
 
 			instr_rdcycle  <= ((mem_rdata_q[6:0] == 7'b1110011 && mem_rdata_q[31:12] == 'b11000000000000000010) ||
 			                   (mem_rdata_q[6:0] == 7'b1110011 && mem_rdata_q[31:12] == 'b11000000000100000010)) && ENABLE_COUNTERS;
@@ -1196,7 +1155,7 @@ module picorv32 #(
 			endcase
 		end
 
-		if (!resetn) begin // reset
+		if (!resetn) begin
 			is_beq_bne_blt_bge_bltu_bgeu <= 0;
 			is_compare <= 0;
 
@@ -1225,32 +1184,20 @@ module picorv32 #(
 			instr_or    <= 0;
 			instr_and   <= 0;
 
-			instr_andn   <= 0;
-			instr_orn    <= 0;
-			instr_xnor   <= 0;
-			instr_max    <= 0;
-			instr_maxu   <= 0;
-			instr_min    <= 0;
-			instr_minu   <= 0;
-			instr_rol    <= 0;
-			instr_ror    <= 0;
-			instr_clz    <= 0;
-			instr_ctz    <= 0;
-			instr_cpop   <= 0;
-			instr_sext_b <= 0;
-			instr_sext_h <= 0;
-			instr_zext_h <= 0;
-			instr_rori   <= 0;
-			instr_orc_b  <= 0;
-			instr_rev8   <= 0;
+			instr_sh1add <=0; //new added zba
+			instr_sh2add <=0;
+			instr_sh3add <=0;
 
+			instr_clmul  <=0; // new added zbc
+			instr_clmulh <=0;
+			instr_clmulr <=0;			
+			
 			instr_fence <= 0;
 		end
 	end
 
 
 	// Main State Machine
-	// Execute
 
 	localparam cpu_state_trap   = 8'b10000000;
 	localparam cpu_state_fetch  = 8'b01000000;
@@ -1308,9 +1255,8 @@ module picorv32 #(
 	reg [31:0] alu_add_sub;
 	reg [31:0] alu_shl, alu_shr;
 	reg alu_eq, alu_ltu, alu_lts;
-	reg [31:0] temp, temp2, temp3, temp4;
-	reg flag;
-	integer index, index1;
+	reg [31:0] alu_sh1add, alu_sh2add, alu_sh3add; // new added zba
+	
 
 	generate if (TWO_CYCLE_ALU) begin
 		always @(posedge clk) begin
@@ -1320,6 +1266,10 @@ module picorv32 #(
 			alu_ltu <= reg_op1 < reg_op2;
 			alu_shl <= reg_op1 << reg_op2[4:0];
 			alu_shr <= $signed({instr_sra || instr_srai ? reg_op1[31] : 1'b0, reg_op1}) >>> reg_op2[4:0];
+			// new added zba
+			alu_sh1add <= reg_op2 + (reg_op1 << 1);
+    		alu_sh2add <= reg_op2 + (reg_op1 << 2);
+    		alu_sh3add <= reg_op2 + (reg_op1 << 3);
 		end
 	end else begin
 		always @* begin
@@ -1329,13 +1279,17 @@ module picorv32 #(
 			alu_ltu = reg_op1 < reg_op2;
 			alu_shl = reg_op1 << reg_op2[4:0];
 			alu_shr = $signed({instr_sra || instr_srai ? reg_op1[31] : 1'b0, reg_op1}) >>> reg_op2[4:0];
+			// new added zba
+			alu_sh1add = reg_op2 + (reg_op1 << 1);
+    		alu_sh2add = reg_op2 + (reg_op1 << 2);
+    		alu_sh3add = reg_op2 + (reg_op1 << 3);
 		end
 	end endgenerate
 
 	always @* begin
 		alu_out_0 = 'bx;
 		(* parallel_case, full_case *)
-		case (1'b1) // branch instructions
+		case (1'b1)
 			instr_beq:
 				alu_out_0 = alu_eq;
 			instr_bne:
@@ -1352,7 +1306,7 @@ module picorv32 #(
 
 		alu_out = 'bx;
 		(* parallel_case, full_case *)
-		case (1'b1) // arithmetic instructions
+		case (1'b1)
 			is_lui_auipc_jal_jalr_addi_add_sub:
 				alu_out = alu_add_sub;
 			is_compare:
@@ -1363,87 +1317,36 @@ module picorv32 #(
 				alu_out = reg_op1 | reg_op2;
 			instr_andi || instr_and:
 				alu_out = reg_op1 & reg_op2;
-			instr_andn:
-				alu_out = reg_op1 & ~reg_op2;
-			instr_orn:
-				alu_out = reg_op1 | ~reg_op2;
-			instr_xnor:
-				alu_out = ~(reg_op1 ^ reg_op2);
-			instr_max:
-				alu_out = ($signed(reg_op1) > $signed(reg_op2))? $signed(reg_op1) : $signed(reg_op2);
-			instr_maxu:
-				alu_out = (reg_op1 > reg_op2)? reg_op1 : reg_op2;
-			instr_min:
-				alu_out = ($signed(reg_op1) < $signed(reg_op2))? $signed(reg_op1) : $signed(reg_op2);
-			instr_minu:
-				alu_out = (reg_op1 < reg_op2)? reg_op1 : reg_op2;
-			BARREL_SHIFTER && instr_rol:
-				alu_out = (reg_op1 << (reg_op2[4:0])) | (reg_op1 >> (32 - (reg_op2[4:0])));
-			BARREL_SHIFTER && instr_ror:
-				alu_out = (reg_op1 >> (reg_op2[4:0])) | (reg_op1 << (32 - (reg_op2[4:0])));
-			instr_clz:
-    			if (reg_op1 == 0) alu_out = 32;
-    			else begin
-        			alu_out = 0;
-					flag = 0;
-        			for (i = 31; i >= 0; i = i - 1) begin
-						if (flag == 0) begin
-							if (reg_op1[i] == 1) begin
-								flag = 1;
-							end
-							else alu_out = alu_out + 1;
-						end
-        			end
-    			end
-			instr_ctz:
-				if (reg_op1 == 0) alu_out = 32;
-				else begin
-					alu_out = 0;
-					temp = (reg_op1 - 1) & ~reg_op1;
-					for(i = 0; i < 32; i = i + 1) begin
-						if((temp & 1) == 1) begin
-							alu_out = alu_out + 1;
-							temp = temp >> 1;
-						end
-					end
+				
+			// new added zba
+			instr_sh1add: 
+				alu_out = alu_sh1add;
+        	instr_sh2add: 
+				alu_out = alu_sh2add;
+        	instr_sh3add: 
+				alu_out = alu_sh3add;
+
+			// new added zbc
+			instr_clmul: begin
+			    alu_out = 0;
+				for(i = 0; i < 32; i = i + 1) begin
+					if (reg_op2[i]) alu_out = alu_out ^ (reg_op1 << i);
 				end
-			instr_cpop:
-				if (reg_op1 == 0) alu_out = 0;
-				else begin
-					alu_out = 0;
-					for(i = 0; i < 32; i = i + 1) begin
-						if (reg_op1[i] == 1) begin
-							alu_out = alu_out + 1;
-						end
-					end
+			end
+			
+			instr_clmulh: begin
+				alu_out = 0;
+				for(i = 1; i < 32; i = i + 1) begin
+					if (reg_op2[i]) alu_out = alu_out ^ (reg_op1 >> (32 - i));
 				end
-			instr_sext_b:
-				alu_out = {{24{reg_op1[7]}}, reg_op1[7:0]};
-			instr_sext_h:
-				alu_out = {{16{reg_op1[15]}}, reg_op1[15:0]};
-			instr_zext_h:
-				alu_out = {{16{1'b0}}, reg_op1[15:0]};
-			BARREL_SHIFTER && instr_rori:
-				alu_out = (reg_op1 >> (reg_op2[4:0])) | (reg_op1 << (32 - (reg_op2[4:0])));
-			BARREL_SHIFTER && instr_orc_b:
-				if (reg_op1 == 0) alu_out = 0;
-				else begin
-					temp = reg_op1;
-					for (i = 0; i < 4; i = i + 1) begin
-						if (temp[7:0] == 0) begin
-							temp2[7:0] = {8{1'b0}};
-							temp = temp >> 8;
-							temp2 = temp2 << 8;
-						end else begin
-							temp2[7:0] = {8{1'b1}};
-							temp = temp >> 8;
-							temp2 = temp2 << 8;
-						end
-					end
-					alu_out = {temp2[7:0], temp2[15:8], temp2[23:16], temp2[31:24]};
+			end
+			instr_clmulr: begin
+				alu_out = 0;
+				for(i = 0; i < 32; i = i + 1) begin
+					if (reg_op2[i]) alu_out = alu_out ^ (reg_op1 >> (32 - i - 1));
 				end
-			BARREL_SHIFTER && instr_rev8:
-				alu_out = {reg_op1[7:0], reg_op1[15:8], reg_op1[23:16], reg_op1[31:24]};
+			end
+
 			BARREL_SHIFTER && (instr_sll || instr_slli):
 				alu_out = alu_shl;
 			BARREL_SHIFTER && (instr_srl || instr_srli || instr_sra || instr_srai):

@@ -107,19 +107,19 @@ firmware/firmware.bin: firmware/firmware.elf
 	chmod -x $@
 
 firmware/firmware.elf: $(FIRMWARE_OBJS) $(TEST_OBJS) firmware/sections.lds
-	$(TOOLCHAIN_PREFIX)gcc -Os -mabi=ilp32 -march=rv32im$(subst C,c,$(COMPRESSED_ISA)) -ffreestanding -nostdlib -o $@ \
+	$(TOOLCHAIN_PREFIX)gcc -Os -mabi=ilp32 -march=rv32im$(subst C,c,$(COMPRESSED_ISA))_zba_zbc_zbs -ffreestanding -nostdlib -o $@ \
 		-Wl,--build-id=none,-Bstatic,-T,firmware/sections.lds,-Map,firmware/firmware.map,--strip-debug \
 		$(FIRMWARE_OBJS) $(TEST_OBJS) -lgcc
 	chmod -x $@
 
 firmware/start.o: firmware/start.S
-	$(TOOLCHAIN_PREFIX)gcc -c -mabi=ilp32 -march=rv32im$(subst C,c,$(COMPRESSED_ISA))_zbb -o $@ $<
+	$(TOOLCHAIN_PREFIX)gcc -c -mabi=ilp32 -march=rv32im$(subst C,c,$(COMPRESSED_ISA))_zba_zbc_zbs -o $@ $<
 
 firmware/%.o: firmware/%.c
-	$(TOOLCHAIN_PREFIX)gcc -c -mabi=ilp32 -march=rv32i$(subst C,c,$(COMPRESSED_ISA))_zbb -Os --std=c99 $(GCC_WARNS) -ffreestanding -nostdlib -o $@ $<
+	$(TOOLCHAIN_PREFIX)gcc -c -mabi=ilp32 -march=rv32i$(subst C,c,$(COMPRESSED_ISA))_zba_zbc_zbs -Os --std=c99 $(GCC_WARNS) -ffreestanding -nostdlib -o $@ $<
 
 tests/%.o: tests/%.S tests/riscv_test.h tests/test_macros.h
-	$(TOOLCHAIN_PREFIX)gcc -c -mabi=ilp32 -march=rv32im_zbb -o $@ -DTEST_FUNC_NAME=$(notdir $(basename $<)) \
+	$(TOOLCHAIN_PREFIX)gcc -c -mabi=ilp32 -march=rv32im_zba_zbc_zbs -o $@ -DTEST_FUNC_NAME=$(notdir $(basename $<)) \
 		-DTEST_FUNC_TXT='"$(notdir $(basename $<))"' -DTEST_FUNC_RET=$(notdir $(basename $<))_ret $<
 
 download-tools:
